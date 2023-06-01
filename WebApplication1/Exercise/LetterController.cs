@@ -1,95 +1,36 @@
 ﻿using Microsoft.AspNetCore.Mvc;
-using Microsoft.Extensions.Caching.Memory;
-using System.Net.Http.Headers;
+using Exercise;
+using WebApplication1.Exercise.Exercise.Controllers;
 
 namespace WebApplication1.Exercise
 {
-    [Route("letter")]
-    [ApiController]
-    public class LetterController : ControllerBase
-    {
-        private readonly IHttpClientFactory _httpClientFactory;
-        private readonly IMemoryCache _memoryCache;
 
-        public LetterController(IHttpClientFactory httpClientFactory, IMemoryCache memoryCache)
+    public class LetterController : ODataController
+    {
+        private readonly IDataService _dataService;
+
+        public LetterController(IDataService dataService)
         {
-            _httpClientFactory = httpClientFactory;
-            _memoryCache = memoryCache;
+            _dataService = dataService;
         }
 
-        [HttpGet]
-        public async Task<ActionResult<IEnumerable<object>>> Get()
+        [EnableQuery]
+        public IActionResult Get()
         {
-            if (_memoryCache.TryGetValue("letterData", out IEnumerable<object> letterData))
+            try
             {
+                // Obter os dados da fonte de dados
+                var letterData = _dataService.GetLetterData();
+
+                // Retornar os dados como resposta JSON
                 return Ok(letterData);
             }
-
-            var users = await GetUsers();
-            var posts = await GetPosts();
-
-            letterData = GenerateLetterData(users, posts);
-
-            var cacheOptions = new MemoryCacheEntryOptions
+            catch (Exception ex)
             {
-                AbsoluteExpirationRelativeToNow = TimeSpan.FromMinutes(1)
-            };
-
-            _memoryCache.Set("letterData", letterData, cacheOptions);
-
-            return Ok(letterData);
-        }
-
-        private async Task<IEnumerable<User>> GetUsers()
-        {
-            var httpClient = _httpClientFactory.CreateClient();
-            httpClient.DefaultRequestHeaders.Accept.Clear();
-            httpClient.DefaultRequestHeaders.Accept.Add(new MediaTypeWithQualityHeaderValue("application/json"));
-
-            var response = await httpClient.GetAsync("https://jsonplaceholder.typicode.com/users");
-            response.EnsureSuccessStatusCode();
-
-            var users = await response.Content.ReadAsAsync<IEnumerable<User>>();
-            return users;
-        }
-
-        private async Task<IEnumerable<Post>> GetPosts()
-        {
-            var httpClient = _httpClientFactory.CreateClient();
-            httpClient.DefaultRequestHeaders.Accept.Clear();
-            httpClient.DefaultRequestHeaders.Accept.Add(new MediaTypeWithQualityHeaderValue("application/json"));
-
-            var response = await httpClient.GetAsync("https://jsonplaceholder.typicode.com/posts");
-            response.EnsureSuccessStatusCode();
-
-            var posts = await response.Content.ReadAsAsync<IEnumerable<Post>>();
-            return posts;
-        }
-
-        private IEnumerable<object> GenerateLetterData(IEnumerable<User> users, IEnumerable<Post> posts)
-        {
-            var letterData = new List<object>();
-
-            foreach (var user in users)
-            {
-                var userPosts = posts.Where(p => p.UserId == user.Id).ToList();
-                var userObject = new
-                {
-                    id = user.Id,
-                    name = user.Name,
-                    username = user.Username,
-                    email = user.Email,
-                    address = user.Address,
-                    phone = user.Phone,
-                    website = user.Website,
-                    company = user.Company,
-                    posts = userPosts
-                };
-
-                letterData.Add(userObject);
+                // Lidar com erros e retornar uma resposta de erro adequada
+                return StatusCode(500, $"An error occurred: {ex.Message}");
             }
-
-            return letterData;
         }
     }
+
 }
